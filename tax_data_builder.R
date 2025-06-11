@@ -45,10 +45,10 @@ generate_tax_data <- function(data, coverage = 0.85) {
   
   year_range <- paste0(seq(2015, 2024, by = 1))
   
-  coverage_n <- floor(nrow(test) * 0.85) 
-  id_randomiser <- sample(test$true_id, size = coverage_n)
+  coverage_n <- floor(nrow(data) * 0.85) 
+  id_randomiser <- sample(datat$true_id, size = coverage_n)
   
-  tax_builder <- test %>%
+  tax_builder <- data %>%
     filter(true_id %in% id_randomiser) %>% 
     mutate(tax_id  = as.numeric(paste0(fraudster_cl$integer(n = n(), min = 10000000, max = 99999999))),
            filling_status = sample(c("Single", "Married Filling Jointly", "Married Filling Seperately", "Head of Household"), size = n(), replace = TRUE, prob = c(0.4, 0.35, 0.10, 0.15)),
@@ -116,15 +116,25 @@ generate_tax_data <- function(data, coverage = 0.85) {
 test_tax <- generate_tax_data(test)
 
 # SOCIAL BENEFIT RECORDS
-geneate_social_benefit <- function(data, coverage = 0.25) {
+generate_social_benefit <- function(data, coverage = 0.25) {
   
+  coverage_n <- floor(nrow(data) * 0.25) 
+  id_randomiser <- sample(data$true_id, size = coverage_n)
   
+  benefit_programs <- c("unemployment", "disability", "food assitance", "housing support")
+  benefit <- c(700, 800, 1500, 2000)
   
+  social_benefit_data <- data %>% 
+    filter(true_id %in% id_randomiser) %>%
+    mutate(
+      program_enrolled = sample(benefit_programs, size = n(), prob = c(0.2, 0.1, 0.15, 0.55), replace = TRUE),
+      benefit_amount = sample(benefit, size = n(), prob = c(0.2, 0.1, 0.15, 0.55), replace = TRUE),
+      start_date = sample(seq.Date(from = ymd("2015-01-01"), to = ymd("2024-12-31"), by = "day"), size = n(), replace = TRUE),
+      end_date = start_date + sample(30:1080, size = n(), replace = TRUE)
+    ) %>%
+    select(name, date_of_birth, gender, address_street, program_enrolled, benefit_amount, start_date, end_date)
   
-  
-  
-  
-  
-  
-  
+  return(social_benefit_data)
 }
+
+test_social <- generate_social_benefit(test)
