@@ -13,6 +13,7 @@ library(tidyverse)
 library(lubridate)
 library(charlatan)
 
+
 set.seed(12345)  # For reproducibility
 
 # Parameters
@@ -46,7 +47,7 @@ generate_tax_data <- function(data, coverage = 0.85) {
   year_range <- paste0(seq(2015, 2024, by = 1))
   
   coverage_n <- floor(nrow(data) * 0.85) 
-  id_randomiser <- sample(datat$true_id, size = coverage_n)
+  id_randomiser <- sample(data$true_id, size = coverage_n)
   
   tax_builder <- data %>%
     filter(true_id %in% id_randomiser) %>% 
@@ -88,7 +89,7 @@ generate_tax_data <- function(data, coverage = 0.85) {
         
         # typos in name 
       } else if (error_type == 3) {
-        affected_name <- tax_per_year$name[i]
+        affected_name <- tax_per_year$name[k]
         prob_more_2_errors <- sample(1:2, size = 1, prob = c(0.85, 0.15))
         
         if (prob_more_2_errors == 1) {
@@ -134,7 +135,129 @@ generate_social_benefit <- function(data, coverage = 0.25) {
     ) %>%
     select(name, date_of_birth, gender, address_street, program_enrolled, benefit_amount, start_date, end_date)
   
+  # add realistic error
+  add_error_n <- floor(nrow(data)) * 0.05
+  error_rows <- sample(1:add_error_n, size = add_error_n, replace = TRUE)
+  
+  for (k in error_rows) {
+    
+    error_type <- sample(1:2, 1)
+      
+      # missing benefit value 
+    if (error_type == 1) {
+      social_benefit_data$benefit_amount[k] <- NA
+      
+      # typos in name 
+    } else if (error_type == 2) {
+      affected_name <- social_benefit_data$name[k]
+      prob_more_2_errors <- sample(1:2, size = 1, prob = c(0.85, 0.15))
+      
+      if (prob_more_2_errors == 1) {
+        pos <- sample(2:(nchar(affected_name) - 1), 1)
+        substr(affected_name, pos, pos) <- sample(letters, 1)
+        social_benefit_data$name[k] <- affected_name
+        
+      } else {
+        pos <- sample(2:(nchar(affected_name) - 1), 2)
+        social_benefit_data$name[k] <- sapply(affected_name, function(x){
+          chars <- strsplit(x, "")[[1]]
+          chars[pos] <- sample(letters, length(pos), replace = TRUE)
+          paste0(chars, collapse = "")
+        })
+      }
+    }
+  }
   return(social_benefit_data)
 }
 
 test_social <- generate_social_benefit(test)
+
+# Health data include hospital region and hospital addressees
+generate_health_data <- function(data, coverage = 0.75) {
+  
+  coverage_n <- floor(nrow(data) * coverage) 
+  id_randomiser <- sample(data$true_id, size = coverage_n)
+  
+  # Define common diagnoses and procedures
+  diagnosis_codes <- c("I10.9", "E11.9", "J45.909", "K21.9", "N18.9", "Z00.00", "R51", "M54.5") # Common ICD-10 like codes
+  procedures <- c("Physical Exam", "Blood Test", "X-Ray", "MRI Scan", "Vaccination", "Minor Surgery")
+  hospital_region <- c("Northland", "Auckland", "Waikato", "Bay of Plenty", "Gisborne", "Hawke's Bay",
+                       "Taranaki", "Manawatū-Whanganui", "Wellington", "Tasman", "Nelson", "Marlborough", 
+                       "West Coast", "Canterbury", "Otago", "Southland")
+  hospital_name <- paste0(hospital_region, " ", "Hospital")
+  healthcare_insurance <- c("Public Healthcare", "AIA", "Allianz", "Southern Cross", "AA Insurance", "NIB")
+  
+  health_data <- data %>% 
+    filter(true_id %in% id_randomiser) %>% 
+    mutate(patient_id = as.numeric(paste0(fraudster_cl$integer(n = n(), min = 100000, max = 999999))),
+           diagnosis_type = sample(diagnosis_codes, size = n(), replace = TRUE, prob = c(0.2, 0.15, 0.1, 0.1, 0.05, 0.2, 0.1, 0.1)),
+           procedure = sample(procedures, size = n(), replace = TRUE, prob = c(0.3, 0.25, 0.15, 0.1, 0.1, 0.1)),
+           hospital_region = sample(hospital_region, size = n(), replace = TRUE, prob = c(0.05, 0.2, 0.05, 0.05, 0.05, 0.05,
+                                                                                        0.03, 0.07, 0.1, 0.05, 0.02, 0.08, 0.05, 0.05, 0.04, 0.06)),
+           hospital_name = sample(hospital_name, size = n(), replace = TRUE,  prob = c(0.05, 0.2, 0.05, 0.05, 0.05, 0.05,
+                                                                                       0.03, 0.07, 0.1, 0.05, 0.02, 0.08, 0.05, 0.05, 0.04, 0.06)),
+           insurance = sample(healthcare_insurance, size = n(), replace = TRUE, prob = c(0.7, 0.05, 0.05, 0.1, 0.05, 0.05)),
+           visit_date = sample(seq.Date(from = ymd("2015-01-01"), to = ymd("2024-12-31"), by = "day"),size = n(), replace = TRUE)
+           ) %>% 
+    select(-true_id)
+  
+  # add realistic error
+  add_error_n <- floor(nrow(data)) * 0.05
+  error_rows <- sample(1:add_error_n, size = add_error_n, replace = TRUE)
+  
+  for (k in error_rows) {
+    
+    error_type <- sample(1:2, 1)
+    
+    # dob error
+    if (error_type == 1) {
+      dob_error_type <- sample(1:2, 1, prob(0.4, 0.6))
+      
+      # error in month
+      if (dob_error_type == 1) {
+        dob_row <- as.character(health_data$date_of_birth[k])
+        current_row_dob <- month(dob_row)
+        months_seq <- seq(from = 1, to = 12, by = 1)
+        months_seq <- months_seq[!months_seq %in% current_row_dob]
+        months_seq <- sapply(months_seq, FUN = function(x){ifelse(nchar(x) < 2, paste0("0", x), x)})
+        new_dob_month <- sample(months_seq, size = 1, replace = TRUE)
+        new_row_dob <- str_replace(dob_row, pattern = "-(\\d{2})-", paste0("-", new_dob_month, "-"))
+        health_data$date_of_birth[k] <- ymd(new_row_dob)
+      } else {
+        
+        
+        
+      }
+      
+      # typos in name 
+    } else if (error_type == 2) {
+      affected_name <- social_benefit_data$name[k]
+      prob_more_2_errors <- sample(1:2, size = 1, prob = c(0.85, 0.15))
+      
+      if (prob_more_2_errors == 1) {
+        pos <- sample(2:(nchar(affected_name) - 1), 1)
+        substr(affected_name, pos, pos) <- sample(letters, 1)
+        social_benefit_data$name[k] <- affected_name
+        
+      } else {
+        pos <- sample(2:(nchar(affected_name) - 1), 2)
+        social_benefit_data$name[k] <- sapply(affected_name, function(x){
+          chars <- strsplit(x, "")[[1]]
+          chars[pos] <- sample(letters, length(pos), replace = TRUE)
+          paste0(chars, collapse = "")
+        })
+      }
+    }
+  }
+  return(social_benefit_data)
+  
+  return(health_data)
+}
+
+test_health <- generate_health_data(test)
+
+
+
+
+
+
