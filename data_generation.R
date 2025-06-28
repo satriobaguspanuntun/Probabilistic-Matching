@@ -211,37 +211,45 @@ generate_health_data <- function(data, coverage = 0.75) {
     
     # dob error
     if (error_type == 1) {
-      dob_error_type <- sample(1:2, 1, prob(0.4, 0.6))
+      dob_error_type <- sample(1:2, 1, prob = c(0.4, 0.6))
       
       # error in month
       if (dob_error_type == 1) {
-        dob_row <- as.character(health_data$date_of_birth[k])
-        current_row_dob <- month(dob_row)
+        dob_row <- health_data$date_of_birth[k]
+        print(k)
+        print(dob_row)
+        current_row_dob <- month(ymd(dob_row))
+        print(current_row_dob)
         months_seq <- seq(from = 1, to = 12, by = 1)
         months_seq <- months_seq[!months_seq %in% current_row_dob]
         months_seq <- sapply(months_seq, FUN = function(x){ifelse(nchar(x) < 2, paste0("0", x), x)})
         new_dob_month <- sample(months_seq, size = 1, replace = TRUE)
         new_row_dob <- str_replace(dob_row, pattern = "-(\\d{2})-", paste0("-", new_dob_month, "-"))
         health_data$date_of_birth[k] <- ymd(new_row_dob)
+        
+      # error on the entirety of DOB
       } else {
-        
-        
+        dob_row <- health_data$date_of_birth[k]
+        date_seq <- seq(as.Date("1920-01-01"), as.Date("2008-12-31"), by = "day")
+        date_seq <- date_seq[!date_seq %in% dob_row]
+        new_row_dob <- sample(date_seq, replace = TRUE, size = 1)
+        health_data$date_of_birth[k] <- new_row_dob
         
       }
       
       # typos in name 
     } else if (error_type == 2) {
-      affected_name <- social_benefit_data$name[k]
+      affected_name <- health_data$name[k]
       prob_more_2_errors <- sample(1:2, size = 1, prob = c(0.85, 0.15))
       
       if (prob_more_2_errors == 1) {
         pos <- sample(2:(nchar(affected_name) - 1), 1)
         substr(affected_name, pos, pos) <- sample(letters, 1)
-        social_benefit_data$name[k] <- affected_name
+        health_data$name[k] <- affected_name
         
       } else {
         pos <- sample(2:(nchar(affected_name) - 1), 2)
-        social_benefit_data$name[k] <- sapply(affected_name, function(x){
+        health_data$name[k] <- sapply(affected_name, function(x){
           chars <- strsplit(x, "")[[1]]
           chars[pos] <- sample(letters, length(pos), replace = TRUE)
           paste0(chars, collapse = "")
@@ -249,15 +257,39 @@ generate_health_data <- function(data, coverage = 0.75) {
       }
     }
   }
-  return(social_benefit_data)
-  
   return(health_data)
 }
 
 test_health <- generate_health_data(test)
 
+# education data generator
+generate_education_data <- function(data, coverage = 0.90) {
+  
+  coverage_n <- floor(nrow(data) * coverage) 
+  id_randomiser <- sample(data$true_id, size = coverage_n)
+  
+  # education information
+  educ_level <-  c("Elementary", "Junior High", "Senior High", "Bachelor", "Master", "PhD")
+  educ_field_bachelor_above <- c("Science", "Engineering", "Arts", "Commerce", "Law", "Medicine")
+  educ_field_below <- c("Social Science", "Natural Science")
+  scholarship <- c("Yes", "No")
+  
+  education_data <- data %>% 
+    filter(true_id %in% id_randomiser) %>% 
+    mutate(educ_id = paste0("EDUC_", fraudster_cl$integer(n = n(), min = 10000, max = 99999)),
+           educ_levels = sample(educ_level, size = n(), replace = TRUE, prob = c(0.1, 0.1, 0.3, 0.2, 0.2, 0.01)),
+           study_field_bachelor_above = ifelse(educ_levels %in% c("Bachelor", "Master", "PhD"), 
+                                               sample(educ_field_bachelor_above, size = n(), replace = TRUE, 
+                                                      prob = c(0.1, 0.2, 0.2, 0.3, 0.1, 0.1)),
+                                               NA),
+           study_field_below = ifelse(educ_levels %in% c("Elementary", "Junior High", "Senior High"), 
+                                      sample(educ_field_below, size = n(), replace = TRUE, prob = c(0.6, 0.4)),
+                                      NA),
+           receive_scholarship = sample(scholarship, size = n(), replace = TRUE, prob = c(0.2, 0.8)))
+  
+  
+  
+  return(education_data)
+}
 
-
-
-
-
+test_educ <- generate_education_data(test)
