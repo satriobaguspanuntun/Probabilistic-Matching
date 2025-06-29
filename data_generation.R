@@ -287,7 +287,63 @@ generate_education_data <- function(data, coverage = 0.90) {
                                       NA),
            receive_scholarship = sample(scholarship, size = n(), replace = TRUE, prob = c(0.2, 0.8)))
   
+  # add error
+  # add realistic error
+  add_error_n <- floor(nrow(data)) * 0.05
+  error_rows <- sample(1:add_error_n, size = add_error_n, replace = TRUE)
   
+  for (k in error_rows) {
+    
+    error_type <- sample(1:2, 1)
+    
+    # dob error
+    if (error_type == 1) {
+      dob_error_type <- sample(1:2, 1, prob = c(0.4, 0.6))
+      
+      # error in month
+      if (dob_error_type == 1) {
+        dob_row <- health_data$date_of_birth[k]
+        print(k)
+        print(dob_row)
+        current_row_dob <- month(ymd(dob_row))
+        print(current_row_dob)
+        months_seq <- seq(from = 1, to = 12, by = 1)
+        months_seq <- months_seq[!months_seq %in% current_row_dob]
+        months_seq <- sapply(months_seq, FUN = function(x){ifelse(nchar(x) < 2, paste0("0", x), x)})
+        new_dob_month <- sample(months_seq, size = 1, replace = TRUE)
+        new_row_dob <- str_replace(dob_row, pattern = "-(\\d{2})-", paste0("-", new_dob_month, "-"))
+        health_data$date_of_birth[k] <- ymd(new_row_dob)
+        
+        # error on the entirety of DOB
+      } else {
+        dob_row <- health_data$date_of_birth[k]
+        date_seq <- seq(as.Date("1920-01-01"), as.Date("2008-12-31"), by = "day")
+        date_seq <- date_seq[!date_seq %in% dob_row]
+        new_row_dob <- sample(date_seq, replace = TRUE, size = 1)
+        health_data$date_of_birth[k] <- new_row_dob
+        
+      }
+      
+      # typos in name 
+    } else if (error_type == 2) {
+      affected_name <- health_data$name[k]
+      prob_more_2_errors <- sample(1:2, size = 1, prob = c(0.85, 0.15))
+      
+      if (prob_more_2_errors == 1) {
+        pos <- sample(2:(nchar(affected_name) - 1), 1)
+        substr(affected_name, pos, pos) <- sample(letters, 1)
+        health_data$name[k] <- affected_name
+        
+      } else {
+        pos <- sample(2:(nchar(affected_name) - 1), 2)
+        health_data$name[k] <- sapply(affected_name, function(x){
+          chars <- strsplit(x, "")[[1]]
+          chars[pos] <- sample(letters, length(pos), replace = TRUE)
+          paste0(chars, collapse = "")
+        })
+      }
+    }
+  }
   
   return(education_data)
 }
