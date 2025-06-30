@@ -58,7 +58,120 @@ out <- fastLink(dfA = data,
 recordsfL <- getMatches(dfA = data, dfB = data, fl.out = out)
 length(unique(recordsfL$dedupe.ids))
 
+# duplicated data 
+head(recordsfL, 4)
 
+recordsfL[recordsfL$ent_id == 20, ]
+
+recordsfL[recordsfL$ent_id == 77, ]
+
+# contigency table
+# true duplicat indicator
+recordsfL$duptrue <- ifelse(duplicated(recordsfL$ent_id), 
+                            "Duplicated", "Not Duplicated")
+
+# duplicate from fastlink
+recordsfL$dupfl <- ifelse(duplicated(recordsfL$dedupe.ids),
+                          "Duplicated", "Not Duplicated")
+
+confusion <- table("FL" = recordsfL$dupfl,
+                   "True" = recordsfL$duptrue)
+
+# True positive, false positive, and false negative
+TP <- confusion[1, 1]
+FP <- confusion[1, 2]
+FN <- confusion[2, 1]
+
+# False negative rate
+FDR <- round(FP/(FP + TP), 3)
+FDR
+
+# false negative rate
+FNR <- round(FN/1000, 3)
+FNR
+
+# precision 
+PRE <- 1 - FDR
+PRE
+
+# recall
+REC <- 1 - FNR
+REC
+
+## we can add numeric comparisons using dissimilarity
+numeric_match_fields <- c("by")
+
+## make sure these are of class numeric
+data$by <- as.numeric(data$by)
+
+# fastlink with numeric comparisons
+out2 <- fastLink(dfA = data, 
+                 dfB = data,
+                 varnames = linkageFields,
+                 stringdist.match = stringDistFields,
+                 cut.a = 0.94,
+                 cut.p = 0.84,
+                 numeric.match = numeric_match_fields,
+                 cut.a.num = 1.5,
+                 partial.match = partialMatchFields,
+                 threshold.match = 0.90,
+                 dedupe = FALSE)
+
+recordsfL2 <- getMatches(dfA = data, dfB = data, fl.out = out2)
+length(unique(recordsfL2$dedupe.ids))
+
+diag_fl <- function(fastlink_data) {
+
+  data <- fastlink_data
+  
+  # true duplicat indicator
+  data$duptrue <- ifelse(duplicated(data$ent_id), 
+                         "Duplicated", "Not Duplicated")
+  
+  # duplicate from fastlink
+  data$dupfl <- ifelse(duplicated(data$dedupe.ids),
+                       "Duplicated", "Not Duplicated")
+  
+  confusion <- table("FL" = data$dupfl,
+                     "True" = data$duptrue)
+  print(confusion)
+  # True positive, false positive, and false negative
+  TP <- confusion[1, 1]
+  FP <- confusion[1, 2]
+  FN <- confusion[2, 1]
+  
+  # False discoveru rate
+  FDR <- round(FP/(FP + TP), 3)
+  FDR
+  
+  # false negative rate
+  FNR <- round(FN/1000, 3)
+  FNR
+  
+  # precision 
+  PRE <- 1 - FDR
+  PRE
+  
+  # recall
+  REC <- 1 - FNR
+  REC
+  
+  diag_table <- data.frame(true_positve = TP,
+                           false_postive = FP,
+                           false_negative = FN,
+                           false_discovery_rate = FDR,
+                           false_negative_rate = FNR,
+                           precision = PRE,
+                           recall = REC)
+  
+  diag_table <- pivot_longer(diag_table, cols = 1:ncol(diag_table), names_to ="Indicator" , values_to = "Values")
+  
+  return(list("data" = data, "diag_table" = diag_table, "confusion" = confusion))
+}
+
+diag_fl(recordsfL)
+
+## Blocking ##
 
 
 
