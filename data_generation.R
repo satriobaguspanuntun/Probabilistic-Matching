@@ -54,7 +54,8 @@ generate_tax_data <- function(data, coverage = 0.85) {
     mutate(tax_id  = as.numeric(paste0(fraudster_cl$integer(n = n(), min = 10000000, max = 99999999))),
            filling_status = sample(c("Single", "Married Filling Jointly", "Married Filling Seperately", "Head of Household"), size = n(), replace = TRUE, prob = c(0.4, 0.35, 0.10, 0.15)),
            num_dependents = sample(0:5, size = n(), replace = TRUE, prob = c(0.3, 0.25, 0.2, 0.15, 0.07, 0.03))
-    )
+    ) %>% 
+    select(-true_id)
   
   data_container <- list()
   
@@ -216,8 +217,6 @@ generate_health_data <- function(data, coverage = 0.75) {
       # error in month
       if (dob_error_type == 1) {
         dob_row <- health_data$date_of_birth[k]
-        print(k)
-        print(dob_row)
         current_row_dob <- month(ymd(dob_row))
         print(current_row_dob)
         months_seq <- seq(from = 1, to = 12, by = 1)
@@ -302,7 +301,7 @@ generate_education_data <- function(data, coverage = 0.90) {
       
       # error in month
       if (dob_error_type == 1) {
-        dob_row <- health_data$date_of_birth[k]
+        dob_row <- education_data$date_of_birth[k]
         print(k)
         print(dob_row)
         current_row_dob <- month(ymd(dob_row))
@@ -312,31 +311,31 @@ generate_education_data <- function(data, coverage = 0.90) {
         months_seq <- sapply(months_seq, FUN = function(x){ifelse(nchar(x) < 2, paste0("0", x), x)})
         new_dob_month <- sample(months_seq, size = 1, replace = TRUE)
         new_row_dob <- str_replace(dob_row, pattern = "-(\\d{2})-", paste0("-", new_dob_month, "-"))
-        health_data$date_of_birth[k] <- ymd(new_row_dob)
+        education_data$date_of_birth[k] <- ymd(new_row_dob)
         
         # error on the entirety of DOB
       } else {
-        dob_row <- health_data$date_of_birth[k]
+        dob_row <- education_data$date_of_birth[k]
         date_seq <- seq(as.Date("1920-01-01"), as.Date("2008-12-31"), by = "day")
         date_seq <- date_seq[!date_seq %in% dob_row]
         new_row_dob <- sample(date_seq, replace = TRUE, size = 1)
-        health_data$date_of_birth[k] <- new_row_dob
+        education_data$date_of_birth[k] <- new_row_dob
         
       }
       
       # typos in name 
     } else if (error_type == 2) {
-      affected_name <- health_data$name[k]
+      affected_name <- education_data$name[k]
       prob_more_2_errors <- sample(1:2, size = 1, prob = c(0.85, 0.15))
       
       if (prob_more_2_errors == 1) {
         pos <- sample(2:(nchar(affected_name) - 1), 1)
         substr(affected_name, pos, pos) <- sample(letters, 1)
-        health_data$name[k] <- affected_name
+        education_data$name[k] <- affected_name
         
       } else {
         pos <- sample(2:(nchar(affected_name) - 1), 2)
-        health_data$name[k] <- sapply(affected_name, function(x){
+        education_data$name[k] <- sapply(affected_name, function(x){
           chars <- strsplit(x, "")[[1]]
           chars[pos] <- sample(letters, length(pos), replace = TRUE)
           paste0(chars, collapse = "")
