@@ -273,9 +273,18 @@ col_combine_output <- function(linkage_data_output) {
   df <- data.frame(linkage_data_output["posterior"], linkage_data_output[["matches"]][["inds.a"]], linkage_data_output[["matches"]][["inds.b"]])
   
   
-  
 } 
 
 df1 <- data.frame(test_out["posterior"], test_out[["matches"]][["inds.a"]], test_out$matches$inds.b)
 
 names(df1) <- c("prob", "link_a_id", "link_b_id")
+
+df2 <- df1 %>% filter(link_a_id != link_b_id)
+
+sd3 <- df1 %>% filter(link_a_id == link_b_id)
+
+data_A <- test_educ %>% mutate(row_id_a = row_number())
+data_B <- test_health %>% mutate(row_id_b = row_number())
+
+merge1 <- inner_join(df2, data_A, by = join_by("link_a_id" == "row_id_a"))
+merge2 <- inner_join(merge1, data_B, by = join_by("link_b_id" == "row_id_b"))
