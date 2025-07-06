@@ -250,7 +250,11 @@ agg.out <- aggregateEM(em.list = aggregate_link_model)
 
 summary(agg.out)
 
-## quick test on health and educ
+
+################################################################################
+################################################################################
+
+## quick test on health and educ (surprisingly slow)
 test_out <- fastLink(dfA = test_educ, dfB = test_health,
                      varnames = c("name", "date_of_birth", "gender", "address_street"),
                      stringdist.match = c("name", "date_of_birth", "address_street"),
@@ -264,7 +268,6 @@ test_matches <- getMatches(dfA = test_educ, dfB = test_health, fl.out = test_out
 summary(test_out)
 
 pattern_match <- test_out$patterns
-
 
 ## function to produce different column a and column b side by side in one dataframe
 col_combine_output <- function(linkage_data_output) {
@@ -281,10 +284,81 @@ names(df1) <- c("prob", "link_a_id", "link_b_id")
 
 df2 <- df1 %>% filter(link_a_id != link_b_id)
 
-sd3 <- df1 %>% filter(link_a_id == link_b_id)
+df3 <- df1 %>% filter(link_a_id == link_b_id)
 
 data_A <- test_educ %>% mutate(row_id_a = row_number())
 data_B <- test_health %>% mutate(row_id_b = row_number())
 
 merge1 <- inner_join(df2, data_A, by = join_by("link_a_id" == "row_id_a"))
 merge2 <- inner_join(merge1, data_B, by = join_by("link_b_id" == "row_id_b"))
+
+
+## quick test by blocking gender and seperating full name into first name and last name
+## dissect address into Road number, home_address, zip code
+educ_new <-  test_educ %>% 
+  separate(name, into = c("first_name", "second_name"), sep = "-", remove = FALSE) %>% 
+  separate(first_name, into = c("first", "second"), sep = " ", remove = FALSE) %>% 
+  select(-true_id, -name, -first_name) %>% 
+  rename("first_name" = first, 
+         "second_name" = second,
+         "last_name" = second_name) %>% 
+  mutate(across(1:3, ~ toupper(.x))) %>% 
+  mutate(across(1:3, ~ gsub("[[:punct:]]", .x, replacement = ""))) %>% 
+  mutate(year = as.numeric(year(date_of_birth)),
+         month = as.numeric(month(date_of_birth)),
+         day = as.numeric(day(date_of_birth))) %>% 
+  relocate(year, month, day, .after = date_of_birth)
+
+health_new <- test_health %>% 
+  separate(name, into = c("first_name", "second_name"), sep = "-", remove = FALSE) %>% 
+  separate(first_name, into = c("first", "second"), sep = " ", remove = FALSE) %>% 
+  select(-name, -first_name) %>% 
+  rename("first_name" = first, 
+         "second_name" = second,
+         "last_name" = second_name) %>% 
+  mutate(across(1:3, ~ toupper(.x))) %>% 
+  mutate(across(1:3, ~ gsub("[[:punct:]]", .x, replacement = ""))) %>% 
+  mutate(year = as.numeric(year(date_of_birth)),
+         month = as.numeric(month(date_of_birth)),
+         day = as.numeric(day(date_of_birth))) %>% 
+  relocate(year, month, day, .after = date_of_birth)
+
+block_gender <- blockData(dfA = educ_new, dfB = health_new, varnames = c("gender", ))
+
+resultsK <- list()
+aggregate_link_model <- list()
+
+for (block in seq_along(block_gender)) {
+  
+  data_temp_a <- educ_new[block_gender[[block]]$dfA.inds, ]
+  data_temp_b <- health_new[block_gender[[block]]$dfB.inds, ]
+  
+  out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
+                       varnames = c("first_name","second_name", "last_name", "year", "month", "day"),
+                       stringdist.match = c("first_name", "second_name", "last_name"),
+                       partial.match = c("first_name", "second_name", "last_name"),
+                       numeric.match = c( "year", "month", "day"),
+                       cut.a.num = 1.25,
+                       cut.p.num = 2.5,
+                       stringdist.method = "jw",
+                       cut.a = 0.94,
+                       cut.p = 0.85,
+                       n.cores = 4,
+                       threshold.match = 0.90)
+  
+  record_temp <- getMatches(dfA = data_temp_a,
+                            dfB = data_temp_b,
+                            fl.out = out_temp)
+  
+  aggregate_link_model[[block]] <- out_temp
+  resultsK[[block]] <- record_temp  
+}
+
+final_output <- do.call(rbind, resultsK)
+
+agg.out <- aggregateEM(em.list = aggregate_link_model)
+
+summary(agg.out)
+
+
+
