@@ -323,7 +323,7 @@ health_new <- test_health %>%
          day = as.numeric(day(date_of_birth))) %>% 
   relocate(year, month, day, .after = date_of_birth)
 
-block_gender <- blockData(dfA = educ_new, dfB = health_new, varnames = c("gender", ))
+block_gender <- blockData(dfA = educ_new, dfB = health_new, varnames = c("gender"))
 
 resultsK <- list()
 aggregate_link_model <- list()
@@ -360,5 +360,42 @@ agg.out <- aggregateEM(em.list = aggregate_link_model)
 
 summary(agg.out)
 
+## K-means clustering blocking
+kmeans_blocks <- blockData(dfA = educ_new, dfB = health_new, kmeans.block = c("year", "month"), 
+                           varnames = c("year", "month"), nclusters = 5)
 
+results_kmeans <- list()
+aggregate_link_model_kmeans <- list()
+
+for (block in seq_along(kmeans_blocks)) {
+  
+  data_temp_a <- educ_new[kmeans_blocks[[block]]$dfA.inds, ]
+  data_temp_b <- health_new[kmeans_blocks[[block]]$dfB.inds, ]
+  
+  out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
+                       varnames = c("first_name","second_name", "last_name", "year", "month", "day"),
+                       stringdist.match = c("first_name", "second_name", "last_name"),
+                       partial.match = c("first_name", "second_name", "last_name"),
+                       numeric.match = c( "year", "month", "day"),
+                       cut.a.num = 1.25,
+                       cut.p.num = 2.5,
+                       stringdist.method = "jw",
+                       cut.a = 0.94,
+                       cut.p = 0.85,
+                       n.cores = 4,
+                       threshold.match = 0.90)
+  
+  record_temp <- getMatches(dfA = data_temp_a,
+                            dfB = data_temp_b,
+                            fl.out = out_temp)
+  
+  aggregate_link_model_kmeans[[block]] <- out_temp
+  results_kmeans[[block]] <- record_temp  
+}
+
+final_output_kmeans <- do.call(rbind, results_kmeans)
+
+agg.out.kmeans <- aggregateEM(em.list = aggregate_link_model_kmeans)
+
+summary(agg.out.kmeans)
 
