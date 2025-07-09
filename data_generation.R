@@ -218,7 +218,6 @@ generate_health_data <- function(data, coverage = 0.75) {
       if (dob_error_type == 1) {
         dob_row <- health_data$date_of_birth[k]
         current_row_dob <- month(ymd(dob_row))
-        print(current_row_dob)
         months_seq <- seq(from = 1, to = 12, by = 1)
         months_seq <- months_seq[!months_seq %in% current_row_dob]
         months_seq <- sapply(months_seq, FUN = function(x){ifelse(nchar(x) < 2, paste0("0", x), x)})
@@ -302,8 +301,6 @@ generate_education_data <- function(data, coverage = 0.90) {
       # error in month
       if (dob_error_type == 1) {
         dob_row <- education_data$date_of_birth[k]
-        print(k)
-        print(dob_row)
         current_row_dob <- month(ymd(dob_row))
         print(current_row_dob)
         months_seq <- seq(from = 1, to = 12, by = 1)

@@ -270,31 +270,26 @@ summary(test_out)
 pattern_match <- test_out$patterns
 
 ## function to produce different column a and column b side by side in one dataframe
-col_combine_output <- function(linkage_data_output) {
+col_combine_output <- function(linkage_data_output, dfa, dfb) {
   
   # filter linkage data for selected columns
   df <- data.frame(linkage_data_output["posterior"], linkage_data_output[["matches"]][["inds.a"]], linkage_data_output[["matches"]][["inds.b"]])
   
+  names(df1) <- c("prob", "link_a_id", "link_b_id")
   
+  df2 <- df1 %>% filter(link_a_id != link_b_id)
+  
+  data_A <- dfa %>% mutate(row_id_a = row_number())
+  data_B <- dfb %>% mutate(row_id_b = row_number())
+  
+  merge1 <- inner_join(df2, data_A, by = join_by("link_a_id" == "row_id_a"))
+  merge2 <- inner_join(merge1, data_B, by = join_by("link_b_id" == "row_id_b"))
+  
+  return(merge2)
 } 
 
-df1 <- data.frame(test_out["posterior"], test_out[["matches"]][["inds.a"]], test_out$matches$inds.b)
-
-names(df1) <- c("prob", "link_a_id", "link_b_id")
-
-df2 <- df1 %>% filter(link_a_id != link_b_id)
-
-df3 <- df1 %>% filter(link_a_id == link_b_id)
-
-data_A <- test_educ %>% mutate(row_id_a = row_number())
-data_B <- test_health %>% mutate(row_id_b = row_number())
-
-merge1 <- inner_join(df2, data_A, by = join_by("link_a_id" == "row_id_a"))
-merge2 <- inner_join(merge1, data_B, by = join_by("link_b_id" == "row_id_b"))
-
-
 ## quick test by blocking gender and seperating full name into first name and last name
-## dissect address into Road number, home_address, zip code
+## dissect address into home_address, zip code
 educ_new <-  test_educ %>% 
   separate(name, into = c("first_name", "second_name"), sep = "-", remove = FALSE) %>% 
   separate(first_name, into = c("first", "second"), sep = " ", remove = FALSE) %>% 
@@ -322,6 +317,79 @@ health_new <- test_health %>%
          month = as.numeric(month(date_of_birth)),
          day = as.numeric(day(date_of_birth))) %>% 
   relocate(year, month, day, .after = date_of_birth)
+
+
+# function to clean address column
+clean_address <- function(data, address_col) {
+  
+  if (!is.character(address_col)) {
+    stop("Please supply the column name in a character data type")
+  }
+  
+  address_vector <- data[, address_col]
+  
+  # replace "\n" with space 
+  address_vector <- gsub(pattern = "\n", replacement = " ", x = address_vector)
+  
+  # replace punctuation with space
+  address_vector <- gsub(pattern = "[[:punct:]]", replacement = "", x = address_vector)
+  
+  # parse address to lowercase
+  address_vector <- tolower(address_vector)
+  
+  # possible clean up address
+  # level, unit, PO Box, Apt., Flat, Suite
+  pattern_vec <- c("level\\s[0-9]+", "unit\\s[0-9]+", "po\\sbox\\s",
+                   "apt\\s[0-9]+", "flat\\s[0-9]+", "suite\\s[0-9]+")
+
+  clean_address_vector <- c()
+  
+  for (i in seq_along(address_vector)) {
+    
+    target_address <- address_vector[i]
+    
+    for (j in seq_along(pattern_vec)) {
+      
+      target_pattern <- pattern_vec[j]
+      
+      if (grepl(pattern = target_pattern, x = target_address, ignore.case = TRUE)) {
+        
+        target_address <- gsub(pattern = target_pattern, 
+                               replacement = " ", 
+                               x = target_address,
+                               ignore.case = TRUE)
+      } 
+    }
+    
+    # Normalize whitespace and trim
+    target_address <- gsub("\\s+", " ", target_address)
+    target_address <- trimws(target_address)
+    
+    clean_address_vector <- c(clean_address_vector, target_address)
+  }
+  
+  # capture the zip code at the end of the address
+  zip_code <- regmatches(clean_address_vector, regexpr("\\s[0-9]+$", clean_address_vector, ignore.case = TRUE))
+  
+  # remove zip code from address
+  clean_address_vector <- gsub("\\s[0-9]+$", replacement = "", x = clean_address_vector, ignore.case = TRUE)
+  
+  # re-normalize vectors
+  zip_code <- gsub("\\s+", "", zip_code)
+  zip_code <- trimws(zip_code)
+  zip_code <- as.numeric(zip_code)
+  
+  clean_address_vector <- gsub("\\s+", " ", clean_address_vector)
+  clean_address_vector <- trimws(clean_address_vector)
+  
+  address_data <- data.frame(address_street_clean = clean_address_vector,
+                             zip_code = zip_code)
+  
+  return(address_data)
+}
+
+###############################################################################
+# Record linkage by gender #
 
 block_gender <- blockData(dfA = educ_new, dfB = health_new, varnames = c("gender"))
 
@@ -360,6 +428,8 @@ agg.out <- aggregateEM(em.list = aggregate_link_model)
 
 summary(agg.out)
 
+
+###############################################################################
 ## K-means clustering blocking
 kmeans_blocks <- blockData(dfA = educ_new, dfB = health_new, kmeans.block = c("year", "month"), 
                            varnames = c("year", "month"), nclusters = 5)
@@ -398,4 +468,57 @@ final_output_kmeans <- do.call(rbind, results_kmeans)
 agg.out.kmeans <- aggregateEM(em.list = aggregate_link_model_kmeans)
 
 summary(agg.out.kmeans)
+
+
+###############################################################################
+# use address and zip code for matching #
+
+health_address_clean <- clean_address(health_new, "address_street")
+educ_address_clean <- clean_address(educ_new, "address_street")
+
+educ_new_clean <- cbind(educ_new, educ_address_clean) %>% 
+  select(-address_street) %>% 
+  relocate(address_street_clean, zip_code, .after = gender)
+
+health_new_clean <- cbind(health_new, health_address_clean) %>% 
+  select(-address_street) %>% 
+  relocate(address_street_clean, zip_code, .after = gender)
+
+
+block_gender <- blockData(dfA = educ_new_clean, dfB = health_new_clean, varnames = c("gender"))
+
+results_new <- list()
+aggregate_link_model_new <- list()
+
+for (block in seq_along(block_gender)) {
+  
+  data_temp_a <- educ_new_clean[block_gender[[block]]$dfA.inds, ]
+  data_temp_b <- health_new_clean[block_gender[[block]]$dfB.inds, ]
+  
+  out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
+                       varnames = c("first_name","second_name", "last_name", "address_street_clean", "zip_code", "year", "month", "day"),
+                       stringdist.match = c("first_name", "second_name", "last_name" ,"address_street_clean"),
+                       partial.match = c("first_name", "second_name", "last_name"),
+                       numeric.match = c( "year", "month", "day", "zip_code"),
+                       cut.a.num = 1.25,
+                       cut.p.num = 2.5,
+                       stringdist.method = "jw",
+                       cut.a = 0.94,
+                       cut.p = 0.85,
+                       n.cores = 4,
+                       threshold.match = 0.90)
+  
+  record_temp <- getMatches(dfA = data_temp_a,
+                            dfB = data_temp_b,
+                            fl.out = out_temp)
+  
+  aggregate_link_model_new[[block]] <- out_temp
+  results_new[[block]] <- record_temp  
+}
+
+final_output_new <- do.call(rbind, results_new)
+
+agg_out <- aggregateEM(em.list = aggregate_link_model_new)
+
+summary(agg_out)
 
