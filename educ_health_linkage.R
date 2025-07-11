@@ -82,7 +82,12 @@ for (block in seq_along(block_gender)) {
                             fl.out = out_temp,
                             combine.dfs = FALSE)
   
-  matches_gender[[block]] <- out_temp$matches
+  matches_merge <- getMatches(dfA = data_temp_a,
+                              dfB = data_temp_b,
+                              fl.out = out_temp,
+                              combine.dfs = TRUE)
+  
+  matches_gender[[block]] <- matches_merge
   aggregate_link_model_first[[block]] <- out_temp
   results_gender[[block]] <- record_temp  
 }
@@ -106,7 +111,6 @@ df_first_b <- df_first_b %>% mutate(row_id_b = row_number())
 
 df_first_comb <- left_join(df_first_a, df_first_b, by = join_by("row_id_a" == "row_id_b"))
 
-
 saveRDS(aggregate_link_model_first, file="aggregate_link_model_first.rds")
 
 final_output_first <- do.call(rbind, results_gender)
@@ -120,6 +124,11 @@ summary(agg_out_first)
 # confusion table
 out <- readRDS("aggregate_link_model_first.rds")  
 confusion(out, threshold = 0.95)
+
+for (i in seq_along(agg_out_first)) {
+  out <- agg_out_first[[i]]
+  plot(out)
+}
 
 ###############################################################################
 # SECOND PASS
@@ -286,10 +295,6 @@ health_matched <- health_new_clean2[matches$inds.b, ]
 
 educ_non_matched <- educ_new_clean2[!educ_new_clean2$rowname %in% matches$inds.a, ]
 health_non_matched <- health_new_clean2[!health_new_clean2$rowname %in% matches$inds.b, ]
-
-
-
-
 
 
 
