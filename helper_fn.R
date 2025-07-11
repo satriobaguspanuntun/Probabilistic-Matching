@@ -69,6 +69,34 @@ clean_address <- function(data, address_col) {
   return(address_data)
 }
 
+# function to clean name and DOB
+clean_name_dob <- function(data) {
+  
+  # sense check for targeted columns
+  col_name <- colnames(data)
+  
+  if (!any(col_name %in% c("name", "date_of_birth"))) {
+    stop("The 'name' and 'date_of_birth' column does not exist in the dataframe.")
+  }
+  
+  data_clean <- data %>% 
+    separate(name, into = c("first_name", "second_name"), sep = "-", remove = FALSE) %>% 
+    separate(first_name, into = c("first", "second"), sep = " ", remove = FALSE) %>% 
+    select(-name, -first_name) %>% 
+    rename("first_name" = first, 
+           "second_name" = second,
+           "last_name" = second_name) %>% 
+    mutate(across(1:3, ~ toupper(.x))) %>% 
+    mutate(across(1:3, ~ gsub("[[:punct:]]", .x, replacement = ""))) %>% 
+    mutate(year = as.numeric(year(date_of_birth)),
+           month = as.numeric(month(date_of_birth)),
+           day = as.numeric(day(date_of_birth))) %>% 
+    relocate(year, month, day, .after = date_of_birth)
+
+  return(data_clean)
+}
+
+
 # function for diagnostic check
 diag_check <- function(dfA, dfB, matches_pair) {
   
