@@ -199,8 +199,7 @@ generate_health_data <- function(data, coverage = 0.75) {
                                                                                        0.03, 0.07, 0.1, 0.05, 0.02, 0.08, 0.05, 0.05, 0.04, 0.06)),
            insurance = sample(healthcare_insurance, size = n(), replace = TRUE, prob = c(0.7, 0.05, 0.05, 0.1, 0.05, 0.05)),
            visit_date = sample(seq.Date(from = ymd("2015-01-01"), to = ymd("2024-12-31"), by = "day"),size = n(), replace = TRUE)
-           ) %>% 
-    select(-true_id)
+           )
   
   # add realistic error
   add_error_n <- floor(nrow(data)) * 0.05

@@ -16,7 +16,7 @@
 educ_new <-  test_educ %>% 
   separate(name, into = c("first_name", "second_name"), sep = "-", remove = FALSE) %>% 
   separate(first_name, into = c("first", "second"), sep = " ", remove = FALSE) %>% 
-  select(-true_id, -name, -first_name) %>% 
+  select(-name, -first_name) %>% 
   rename("first_name" = first, 
          "second_name" = second,
          "last_name" = second_name) %>% 
@@ -61,39 +61,65 @@ block_gender <- blockData(dfA = educ_new_clean, dfB = health_new_clean, varnames
 
 results_gender <- list()
 aggregate_link_model_first <- list()
+matches_gender <- list()
 
 for (block in seq_along(block_gender)) {
   
   data_temp_a <- educ_new_clean[block_gender[[block]]$dfA.inds, ]
   data_temp_b <- health_new_clean[block_gender[[block]]$dfB.inds, ]
   
-  out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
-                       varnames = c("first_name","second_name", "last_name", "year", "month", "day"),
-                       stringdist.match = c("first_name", "second_name", "last_name"),
-                       partial.match = c("first_name", "second_name", "last_name"),
-                       numeric.match = c( "year", "month", "day"),
-                       cut.a.num = 1.25,
-                       cut.p.num = 2.5,
+  hide <- capture.output(out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
+                       varnames = c("first_name","second_name", "year", "month", "day", "address_street_clean", "zip_code"),
+                       stringdist.match = c("first_name", "second_name", "address_street_clean"),
+                       partial.match = c("first_name", "second_name", "address_street_clean"),
+                       numeric.match = c( "year", "month", "day", "zip_code"),
                        stringdist.method = "jw",
-                       cut.a = 0.94,
-                       cut.p = 0.85,
                        n.cores = 4,
-                       threshold.match = 0.90)
+                       return.all = TRUE))
   
   record_temp <- getMatches(dfA = data_temp_a,
                             dfB = data_temp_b,
-                            fl.out = out_temp)
+                            fl.out = out_temp,
+                            combine.dfs = FALSE)
   
+  matches_gender[[block]] <- out_temp$matches
   aggregate_link_model_first[[block]] <- out_temp
   results_gender[[block]] <- record_temp  
 }
 
+df_first_a <- list()
+df_first_b <- list()
+
+for (i in 1:length(results_gender)) {
+  
+  # access each list and pull corresponding df matches
+  df_first_a[[i]] <- results_gender[[i]][["dfA.match"]] 
+  df_first_b[[i]] <- results_gender[[i]][["dfB.match"]]
+  
+}
+
+df_first_a <- do.call(rbind, df_first_a)
+df_first_a <- df_first_a %>% mutate(row_id_a = row_number())
+
+df_first_b <- do.call(rbind, df_first_b)
+df_first_b <- df_first_b %>% mutate(row_id_b = row_number())
+
+df_first_comb <- left_join(df_first_a, df_first_b, by = join_by("row_id_a" == "row_id_b"))
+
+
+saveRDS(aggregate_link_model_first, file="aggregate_link_model_first.rds")
+
 final_output_first <- do.call(rbind, results_gender)
+
+matches_output_first <- do.call(rbind, matches_gender)
 
 agg_out_first <- aggregateEM(em.list = aggregate_link_model_first)
 
 summary(agg_out_first)
 
+# confusion table
+out <- readRDS("aggregate_link_model_first.rds")  
+confusion(out, threshold = 0.95)
 
 ###############################################################################
 # SECOND PASS
@@ -104,43 +130,71 @@ block_birth_year <- blockData(dfA = educ_new_clean, dfB = health_new_clean, varn
 results_year <- list()
 aggregate_link_model_second <- list()
 
+
 for (block in seq_along(block_birth_year)) {
   
   data_temp_a <- educ_new_clean[block_birth_year[[block]]$dfA.inds, ]
   data_temp_b <- health_new_clean[block_birth_year[[block]]$dfB.inds, ]
   
-  out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
-                       varnames = c("first_name","second_name", "last_name", "gender","address_street_clean", "zip_code"),
-                       stringdist.match = c("first_name", "second_name", "last_name", "address_street_clean"),
-                       partial.match = c("first_name", "second_name", "last_name", "address_street_clean"),
+  hide <- capture.output(out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
+                       varnames = c("first_name","second_name", "gender","address_street_clean", "zip_code"),
+                       stringdist.match = c("first_name", "second_name", "address_street_clean"),
+                       partial.match = c("first_name", "second_name", "address_street_clean"),
                        numeric.match = c( "zip_code"),
-                       cut.a.num = 1.25,
-                       cut.p.num = 2.5,
                        stringdist.method = "jw",
-                       cut.a = 0.94,
-                       cut.p = 0.85,
                        n.cores = 4,
-                       threshold.match = 0.90)
+                       return.all = TRUE))
   
   record_temp <- getMatches(dfA = data_temp_a,
                             dfB = data_temp_b,
-                            fl.out = out_temp)
+                            fl.out = out_temp,
+                            combine.dfs = FALSE)
   
   aggregate_link_model_second[[block]] <- out_temp
-  results_year[[block]] <- record_temp  
+  results_year[[block]] <- record_temp
+
 }
 
-final_output_second <- do.call(rbind, results_year)
+df_second_a <- list()
+df_second_b <- list()
 
-agg_out_second <- aggregateEM(em.list = aggregate_link_model_second)
+for (i in 1:length(results_year)) {
+  
+  # access each list and pull corresponding df matches
+  df_second_a[[i]] <- results_year[[i]][["dfA.match"]] 
+  df_second_b[[i]] <- results_year[[i]][["dfB.match"]]
+  
+}
+  
+df_second_a <- do.call(rbind, df_second_a)
+df_second_a <- df_second_a %>% mutate(row_id_a = row_number())
+
+df_second_b <- do.call(rbind, df_second_b) %>% mutate(row_id_b = row_number())
+df_second_b <- df_second_b %>% mutate(row_id_a = row_number())
+
+df_second_comb <- left_join(df_second_a, df_second_b, by = join_by("row_id_a" == "row_id_b"))
+  
+agg_out_second <- aggregateEM(em.list = c(aggregate_link_model_second))
 
 summary(agg_out_second)
 
+saveRDS(aggregate_link_model_second, file="aggregate_link_model_second.rds")
+
+# confusion table
+out_sec <- readRDS("aggregate_link_model_second.rds")  
+confusion(out_sec, threshold = 0.95)
+
 ###############################################################################
 # THIRD PASS
-# Record linkage by zip code #
+# Record linkage by first letter of the first name #
 
-block_zip <- blockData(dfA = educ_new_clean, dfB = health_new_clean, varnames = c("zip_code"))
+educ_new_clean <- educ_new_clean %>% mutate(fname = substr(first_name, 1, 1))
+health_new_clean <- health_new_clean  %>% mutate(fname = substr(first_name, 1, 1))
+
+block_zip <- blockData(dfA = educ_new_clean, dfB = health_new_clean, varnames = c("fname"))
+
+# remove blocks that have  10 - 1 obs
+block_zip <- block_zip[-23]
 
 results_zip <- list()
 aggregate_link_model_third <- list()
@@ -150,32 +204,64 @@ for (block in seq_along(block_zip)) {
   data_temp_a <- educ_new_clean[block_zip[[block]]$dfA.inds, ]
   data_temp_b <- health_new_clean[block_zip[[block]]$dfB.inds, ]
   
-  out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
+  hide <- capture.output(out_temp <- fastLink(dfA = data_temp_a, dfB = data_temp_b,
                        varnames = c("first_name","second_name", "last_name", "gender","address_street_clean", "zip_code"),
-                       stringdist.match = c("first_name", "second_name", "last_name", "address_street_clean"),
-                       partial.match = c("first_name", "second_name", "last_name", "address_street_clean"),
+                       stringdist.match = c("second_name", "last_name", "address_street_clean"),
+                       partial.match = c("second_name", "last_name", "address_street_clean"),
                        numeric.match = c( "zip_code"),
-                       cut.a.num = 1.25,
-                       cut.p.num = 2.5,
                        stringdist.method = "jw",
-                       cut.a = 0.94,
-                       cut.p = 0.85,
                        n.cores = 4,
-                       threshold.match = 0.90)
+                       return.all = TRUE))
   
   record_temp <- getMatches(dfA = data_temp_a,
                             dfB = data_temp_b,
-                            fl.out = out_temp)
+                            fl.out = out_temp,
+                            combine.dfs = FALSE)
   
   aggregate_link_model_third[[block]] <- out_temp
   results_zip[[block]] <- record_temp  
 }
+
+df_third_a <- list()
+df_third_b <- list()
+
+for (i in 1:length(results_zip)) {
+  
+  # access each list and pull corresponding df matches
+  df_second_a[[i]] <- results_zip[[i]][["dfA.match"]] 
+  df_second_b[[i]] <- results_zip[[i]][["dfB.match"]]
+  
+}
+
+df_third_a <- do.call(rbind, df_third_a)
+df_third_a <- df_third_a %>% mutate(row_id_a = row_number())
+
+df_third_b <- do.call(rbind, df_third_b) %>% mutate(row_id_b = row_number())
+df_third_b <- df_third_b %>% mutate(row_id_a = row_number())
+
+df_third_comb <- left_join(df_third_a, df_third_b, by = join_by("row_id_a" == "row_id_b"))
 
 final_output_third <- do.call(rbind, results_zip)
 
 agg_out_third <- aggregateEM(em.list = aggregate_link_model_third)
 
 summary(agg_out_third)
+
+saveRDS(aggregate_link_model_third, file="aggregate_link_model_third.rds")
+
+# confusion table
+out_thr <- readRDS("aggregate_link_model_third.rds")  
+confusion(out_thr, threshold = 0.95)
+
+
+
+
+
+
+
+
+
+
 
 
 test_final <- rbind(final_output_first[, 1:24], final_output_second[, 1:24]) %>% distinct()
@@ -200,3 +286,24 @@ health_matched <- health_new_clean2[matches$inds.b, ]
 
 educ_non_matched <- educ_new_clean2[!educ_new_clean2$rowname %in% matches$inds.a, ]
 health_non_matched <- health_new_clean2[!health_new_clean2$rowname %in% matches$inds.b, ]
+
+
+
+
+
+
+
+for (i in seq_along(agg_out_first)) {
+  out <- agg_out_first[[1]]
+  plot(out)
+  }
+
+
+
+
+
+
+
+
+
+
