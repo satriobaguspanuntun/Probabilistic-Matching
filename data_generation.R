@@ -42,11 +42,11 @@ generate_master_population <- function(n){
 test <- generate_master_population(n_individuals)
 
 # GENERATE TAX DATA 
-generate_tax_data <- function(data, coverage = 0.85) {
+generate_tax_data <- function(data, coverage = 0.95) {
   
   year_range <- paste0(seq(2015, 2024, by = 1))
   
-  coverage_n <- floor(nrow(data) * 0.85) 
+  coverage_n <- floor(nrow(data) * coverage) 
   id_randomiser <- sample(data$true_id, size = coverage_n)
   
   tax_builder <- data %>%
@@ -72,12 +72,12 @@ generate_tax_data <- function(data, coverage = 0.85) {
                                     .default = NA))
     
     
-    add_error_n <- floor(nrow(data)) * 0.05
+    add_error_n <- floor(nrow(data)) * 0.15
     error_rows <- sample(1:add_error_n, size = add_error_n, replace = TRUE)
     
     for (k in error_rows) {
       
-      error_type <- sample(1:3, 1)
+      error_type <- sample(1:3, 1, prob = c(0.30, 0.20, 0.50))
       
       # address error
       if (error_type == 1) {
