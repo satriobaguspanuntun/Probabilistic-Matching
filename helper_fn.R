@@ -97,100 +97,90 @@ clean_name_dob <- function(data) {
 }
 
 
-# function for diagnostic check
-diag_check <- function(dfA, dfB, matches_pair) {
-  
-  dfA <- dfA %>% mutate(row_id = row_number(), dataset = "A")
-  dfB <- dfB %>% mutate(row_id = row_number(), dataset = "B")
-  
-  
-  
-  
-}
-
-dfA <- educ_new_clean %>% mutate(row_id = row_number(), dataset = "A")
-dfB <- health_new_clean %>% mutate(row_id = row_number(), dataset = "B")
-
-matched_eval <- left_join(dfA, matches_output_first, by = join_by("row_id" == "inds.a")) %>% 
-  rename("true_id_a" = true_id) %>% 
-  left_join(., dfB, by = join_by("inds.b" == "row_id")) %>% 
-  rename("true_id_b" = true_id)
-
-matched_eval2 <- out_temp$matches %>% 
-  left_join(dfA %>% select(row_id, true_id), by = join_by("inds.a" == "row_id")) %>% 
-  rename("true_id_a" = true_id) %>% 
-  left_join(dfB %>% select(row_id, true_id), by = join_by("inds.b" == "row_id")) %>% 
-  rename("true_id_b" = true_id)
-
-
-matched_eval2 <- matched_eval2 %>% 
-  mutate(result = ifelse(true_id_a == true_id_b, "TP", "FP"))
-
-TP <- sum(matched_eval2$result == "TP")
-FP <- sum(matched_eval2$result == "FP")
-
-true_matches <- dfA %>%
-  inner_join(dfB, by = "true_id") %>%
-  mutate(result = "FN")  # all true links
-
-predicted_pairs <- matched_eval2 %>%
-  mutate(pair_key = paste(inds.a, inds.b, sep = "_"))
-
-true_pairs <- dfA %>%
-  mutate(dfA.row = row_number()) %>%
-  inner_join(dfB %>% mutate(dfB.row = row_number()), by = "true_id") %>%
-  mutate(pair_key = paste(dfA.row, dfB.row, sep = "_"))
-
-FN <- sum(!(true_pairs$pair_key %in% predicted_pairs$pair_key))
-
-# Precision, Recall, FNR, FDR
-FDR <- round(FP / (FP + TP), 3)
-FNR <- round(FN / (TP + FN), 3)
-PRE <- 1 - FDR
-REC <- 1 - FNR
-
-df1 <- out_temp$matches
-df2 <- df1 %>% filter(inds.a != inds.b)
-
-data_A <- dfA %>% mutate(row_id_a = row_number())
-data_B <- dfB %>% mutate(row_id_b = row_number())
-
-merge1 <- left_join(df2, data_A, by = join_by("inds.a" == "row_id_a"))
-merge2 <- left_join(merge1, data_B, by = join_by("inds.b" == "row_id_b"))
-
-
-
-
-out_temp <- fastLink(dfA = educ_new_clean, dfB = health_new_clean,
-                     varnames = c("first_name","second_name", "last_name", "gender","address_street_clean", "zip_code"),
-                     stringdist.match = c("first_name", "second_name", "last_name", "address_street_clean"),
-                     partial.match = c("first_name", "second_name", "last_name", "address_street_clean"),
-                     numeric.match = c( "zip_code"),
-                     cut.a.num = 1.25,
-                     cut.p.num = 2.5,
-                     stringdist.method = "jw",
-                     cut.a = 0.94,
-                     cut.p = 0.85,
-                     n.cores = 4,
-                     threshold.match = 0.95,
-                     return.all = TRUE)
-
-mean(out_temp$posterior)
-
-confusion(out_temp)
-
-linked_results <- out_temp$matches %>%
-  left_join(educ_new_clean %>% mutate(inds.a = row_number()), by = "inds.a") %>%
-  left_join(health_new_clean %>% mutate(inds.b = row_number()), by = "inds.b") %>% 
-  mutate(true_match = true_id.x == true_id.y)
-
-
-
-
-
-
-
-
-
-
+# # function for diagnostic check
+# diag_check <- function(dfA, dfB, matches_pair) {
+#   
+#   dfA <- dfA %>% mutate(row_id = row_number(), dataset = "A")
+#   dfB <- dfB %>% mutate(row_id = row_number(), dataset = "B")
+#   
+#   
+#   
+#   
+# }
+# 
+# dfA <- educ_new_clean %>% mutate(row_id = row_number(), dataset = "A")
+# dfB <- health_new_clean %>% mutate(row_id = row_number(), dataset = "B")
+# 
+# matched_eval <- left_join(dfA, matches_output_first, by = join_by("row_id" == "inds.a")) %>% 
+#   rename("true_id_a" = true_id) %>% 
+#   left_join(., dfB, by = join_by("inds.b" == "row_id")) %>% 
+#   rename("true_id_b" = true_id)
+# 
+# matched_eval2 <- out_temp$matches %>% 
+#   left_join(dfA %>% select(row_id, true_id), by = join_by("inds.a" == "row_id")) %>% 
+#   rename("true_id_a" = true_id) %>% 
+#   left_join(dfB %>% select(row_id, true_id), by = join_by("inds.b" == "row_id")) %>% 
+#   rename("true_id_b" = true_id)
+# 
+# 
+# matched_eval2 <- matched_eval2 %>% 
+#   mutate(result = ifelse(true_id_a == true_id_b, "TP", "FP"))
+# 
+# TP <- sum(matched_eval2$result == "TP")
+# FP <- sum(matched_eval2$result == "FP")
+# 
+# true_matches <- dfA %>%
+#   inner_join(dfB, by = "true_id") %>%
+#   mutate(result = "FN")  # all true links
+# 
+# predicted_pairs <- matched_eval2 %>%
+#   mutate(pair_key = paste(inds.a, inds.b, sep = "_"))
+# 
+# true_pairs <- dfA %>%
+#   mutate(dfA.row = row_number()) %>%
+#   inner_join(dfB %>% mutate(dfB.row = row_number()), by = "true_id") %>%
+#   mutate(pair_key = paste(dfA.row, dfB.row, sep = "_"))
+# 
+# FN <- sum(!(true_pairs$pair_key %in% predicted_pairs$pair_key))
+# 
+# # Precision, Recall, FNR, FDR
+# FDR <- round(FP / (FP + TP), 3)
+# FNR <- round(FN / (TP + FN), 3)
+# PRE <- 1 - FDR
+# REC <- 1 - FNR
+# 
+# df1 <- out_temp$matches
+# df2 <- df1 %>% filter(inds.a != inds.b)
+# 
+# data_A <- dfA %>% mutate(row_id_a = row_number())
+# data_B <- dfB %>% mutate(row_id_b = row_number())
+# 
+# merge1 <- left_join(df2, data_A, by = join_by("inds.a" == "row_id_a"))
+# merge2 <- left_join(merge1, data_B, by = join_by("inds.b" == "row_id_b"))
+# 
+# 
+# 
+# 
+# out_temp <- fastLink(dfA = educ_new_clean, dfB = health_new_clean,
+#                      varnames = c("first_name","second_name", "last_name", "gender","address_street_clean", "zip_code"),
+#                      stringdist.match = c("first_name", "second_name", "last_name", "address_street_clean"),
+#                      partial.match = c("first_name", "second_name", "last_name", "address_street_clean"),
+#                      numeric.match = c( "zip_code"),
+#                      cut.a.num = 1.25,
+#                      cut.p.num = 2.5,
+#                      stringdist.method = "jw",
+#                      cut.a = 0.94,
+#                      cut.p = 0.85,
+#                      n.cores = 4,
+#                      threshold.match = 0.95,
+#                      return.all = TRUE)
+# 
+# mean(out_temp$posterior)
+# 
+# confusion(out_temp)
+# 
+# linked_results <- out_temp$matches %>%
+#   left_join(educ_new_clean %>% mutate(inds.a = row_number()), by = "inds.a") %>%
+#   left_join(health_new_clean %>% mutate(inds.b = row_number()), by = "inds.b") %>% 
+#   mutate(true_match = true_id.x == true_id.y)
 
